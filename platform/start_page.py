@@ -1,7 +1,8 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
-Стартовая страница
+Стартовая страница приложения
 """
 
 from PyQt6.QtWidgets import *
@@ -10,129 +11,126 @@ from PyQt6.QtGui import *
 
 
 class StartPage(QWidget):
-    """Стартовая страница"""
-    
-    newProject = pyqtSignal()
-    openProject = pyqtSignal(str)
-    
-    def __init__(self, project_manager, parent=None):
+    """
+    Стартовая страница с кнопками создания/открытия проекта
+    """
+
+    newProjectRequested = pyqtSignal()
+    openProjectRequested = pyqtSignal()
+
+    def __init__(self, project_manager=None, parent=None):
         super().__init__(parent)
-        
         self.project_manager = project_manager
-        
-        self._setup_ui()
-        self._load_recent_projects()
-    
-    def _setup_ui(self):
+        self.setup_ui()
+
+    def setup_ui(self):
+        """Создание интерфейса стартовой страницы"""
         layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(50, 50, 50, 50)
         layout.setSpacing(30)
-        
-        # Логотип
-        logo = QLabel("🚀")
-        logo.setStyleSheet("font-size: 120px; color: #3b82f6;")
-        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(logo)
-        
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         # Заголовок
-        title = QLabel("No-Code Platform")
-        title.setStyleSheet("font-size: 48px; font-weight: bold; color: #3b82f6;")
+        title = QLabel("🚀 Low-Code Платформа")
+        title.setStyleSheet("""
+            QLabel {
+                color: #4ec9b0;
+                font-size: 36px;
+                font-weight: bold;
+            }
+        """)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
-        
+
         # Подзаголовок
-        subtitle = QLabel("Создавайте приложения без единой строки кода")
-        subtitle.setStyleSheet("font-size: 18px; color: #94a3b8;")
+        subtitle = QLabel("Создавайте приложения без написания кода")
+        subtitle.setStyleSheet("""
+            QLabel {
+                color: #888;
+                font-size: 16px;
+            }
+        """)
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtitle)
-        
-        # Кнопки
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(20)
-        
-        new_btn = QPushButton("📁 Новый проект")
-        new_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        new_btn.setFixedSize(200, 50)
+
+        # Контейнер для кнопок
+        button_container = QWidget()
+        button_layout = QHBoxLayout(button_container)
+        button_layout.setSpacing(20)
+        button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Кнопка нового проекта
+        new_btn = QPushButton("➕ Новый проект")
+        new_btn.setFixedSize(200, 60)
         new_btn.setStyleSheet("""
             QPushButton {
-                background-color: #3b82f6;
+                background-color: #0e639c;
                 color: white;
                 border: none;
                 border-radius: 8px;
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #2563eb;
+                background-color: #1177bb;
             }
         """)
-        new_btn.clicked.connect(self.newProject.emit)
-        btn_layout.addWidget(new_btn)
-        
+        new_btn.clicked.connect(self.newProjectRequested.emit)
+
+        # Кнопка открытия проекта
         open_btn = QPushButton("📂 Открыть проект")
-        open_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        open_btn.setFixedSize(200, 50)
+        open_btn.setFixedSize(200, 60)
         open_btn.setStyleSheet("""
             QPushButton {
-                background-color: #1e293b;
-                color: #e2e8f0;
-                border: 2px solid #334155;
+                background-color: #4c4c4c;
+                color: white;
+                border: none;
                 border-radius: 8px;
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #2d3a4f;
-                border-color: #3b82f6;
+                background-color: #5c5c5c;
             }
         """)
-        open_btn.clicked.connect(lambda: self.openProject.emit(""))
-        btn_layout.addWidget(open_btn)
-        
-        layout.addLayout(btn_layout)
-        
-        # Последние проекты
-        recent_label = QLabel("Последние проекты")
-        recent_label.setStyleSheet("color: #e2e8f0; font-size: 14px; margin-top: 40px;")
-        recent_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(recent_label)
-        
-        self.recent_list = QListWidget()
-        self.recent_list.setMaximumWidth(600)
-        self.recent_list.setMinimumHeight(200)
-        self.recent_list.setStyleSheet("""
-            QListWidget {
-                background-color: #1e293b;
-                border: 1px solid #334155;
-                border-radius: 8px;
-                color: #e2e8f0;
-                padding: 10px;
-                font-size: 14px;
-            }
-            QListWidget::item {
-                padding: 10px;
-                border-radius: 4px;
-                margin: 2px 0;
-            }
-            QListWidget::item:hover {
-                background-color: #2d3a4f;
-            }
-            QListWidget::item:selected {
-                background-color: #3b82f6;
-            }
-        """)
-        self.recent_list.itemDoubleClicked.connect(self._open_recent)
-        layout.addWidget(self.recent_list)
-    
-    def _load_recent_projects(self):
-        self.recent_list.clear()
-        
-        projects = self.project_manager.list_projects()
-        for proj in projects[:10]:
-            item = QListWidgetItem(f"{proj['name']} — {proj['modified'][:10]}")
-            item.setData(Qt.ItemDataRole.UserRole, proj['path'])
-            self.recent_list.addItem(item)
-    
-    def _open_recent(self, item):
-        path = item.data(Qt.ItemDataRole.UserRole)
-        self.openProject.emit(path)
+        open_btn.clicked.connect(self.openProjectRequested.emit)
+
+        button_layout.addWidget(new_btn)
+        button_layout.addWidget(open_btn)
+
+        layout.addWidget(button_container)
+
+        # Информация о последних проектах (если есть)
+        if self.project_manager and self.project_manager.get_recent_projects():
+            recent_label = QLabel("Недавние проекты:")
+            recent_label.setStyleSheet("color: #888; font-size: 12px; margin-top: 30px;")
+            layout.addWidget(recent_label)
+
+            recent_widget = QWidget()
+            recent_layout = QVBoxLayout(recent_widget)
+            recent_layout.setSpacing(5)
+
+            for project in self.project_manager.get_recent_projects():
+                btn = QPushButton(f"📁 {project['name']}")
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #2d2d2d;
+                        color: #e0e0e0;
+                        border: 1px solid #4c4c4c;
+                        border-radius: 4px;
+                        padding: 8px;
+                        text-align: left;
+                    }
+                    QPushButton:hover {
+                        background-color: #3c3c3c;
+                    }
+                """)
+                btn.clicked.connect(lambda checked, p=project: self.open_recent_project(p))
+                recent_layout.addWidget(btn)
+
+            layout.addWidget(recent_widget)
+
+    def open_recent_project(self, project):
+        """Открывает недавний проект"""
+        # TODO: реализовать открытие проекта по пути
+        pass

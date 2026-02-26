@@ -170,7 +170,7 @@ class MainWindow(QMainWindow):
 
     def show_start_page(self):
         """Показывает стартовую страницу"""
-        self.start_page = StartPage()
+        self.start_page = StartPage(self.project_manager)
         self.start_page.newProjectRequested.connect(self.new_project)
         self.start_page.openProjectRequested.connect(self.open_project)
         self.setCentralWidget(self.start_page)
@@ -265,8 +265,10 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            # Копируем проект в новую папку
             import shutil
+            # Копируем проект в новую папку
+            if os.path.exists(new_path):
+                shutil.rmtree(new_path)
             shutil.copytree(self.current_project_path, new_path)
 
             # Открываем скопированный проект
@@ -309,9 +311,13 @@ class MainWindow(QMainWindow):
             ModernMessageBox.warning(self, "Предупреждение", "Сначала откройте проект")
             return
 
+        # Проверяем, существует ли ещё tab_widget
+        if not self.tab_widget or not self.tab_widget.isVisible():
+            self.setup_ui()
+
         # Проверяем, не открыта ли уже вкладка с конструктором таблиц
         for i in range(self.tab_widget.count()):
-            if self.tab_widget.tabText(i) == "Конструктор таблиц":
+            if self.tab_widget.tabText(i) == "📊 Конструктор таблиц":
                 self.tab_widget.setCurrentIndex(i)
                 return
 
@@ -359,9 +365,11 @@ class MainWindow(QMainWindow):
 
     def close_tab(self, index):
         """Закрывает вкладку"""
-        widget = self.tab_widget.widget(index)
-        self.tab_widget.removeTab(index)
-        widget.deleteLater()
+        if index >= 0 and index < self.tab_widget.count():
+            widget = self.tab_widget.widget(index)
+            self.tab_widget.removeTab(index)
+            if widget:
+                widget.deleteLater()
 
         if self.tab_widget.count() == 0:
             self.show_start_page()
