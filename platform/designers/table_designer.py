@@ -1,523 +1,459 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
-Конструктор таблиц - ПОЛНАЯ БЛОКИРОВКА ПРИ ПЕРЕТАСКИВАНИИ
+Конструктор таблиц (основной файл)
 """
 
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 
-from platform.core.translator import Translator
-from platform.core.field_types import FieldType
-from platform.widgets.field_row import FieldRow
-from platform.widgets.properties_panel import PropertiesPanel
-from platform.designers.table_list_panel import TableListPanel
-from platform.designers.field_tile_panel import FieldTilePanel
+from ..widgets.property_panel import PropertyPanel
+from ..widgets.table_viewer import TableViewer
+from ..dialogs.formula_dialog import FormulaDialog
+from .field_tile_panel import FieldTilePanel
+from .table_list_panel import TableListPanel
 
 
-class TableDesignerWidget(QWidget):
-    """Основной виджет конструктора таблиц"""
-    
-    def __init__(self, project_manager):
-        super().__init__()
-        
+class TableDesigner(QWidget):
+    """
+    Главный класс конструктора таблиц
+    """
+
+    tableChanged = pyqtSignal()  # сигнал об изменении таблицы
+    fieldSelected = pyqtSignal(object)  # сигнал о выборе поля
+
+    def __init__(self, project_manager, parent=None):
+        super().__init__(parent)
         self.project_manager = project_manager
         self.current_table = None
         self.current_field = None
-        self.fields = []
-        
-        self.scroll_area = None
-        self.drag_active = False
-        self.add_field_btn = None
-        self.fields_container = None
-        self.properties_panel = None
-        self.drop_hint = None
-        self.fields_layout = None
-        
-        self._setup_ui()
-        self._load_project_tables()
-        
-        # Подключаем сигналы от плиток с задержкой
-        QTimer.singleShot(200, self._connect_all_tiles)
-    
-    def _connect_all_tiles(self):
-        """Находит плитки в FieldTilePanel и подписывается на их состояние"""
-        try:
-            from platform.widgets.field_tile import FieldTile
-            tiles = self.findChildren(FieldTile)
-            print(f"🔍 Найдено плиток: {len(tiles)}")
-            for tile in tiles:
-                tile.dragStarted.connect(self.on_drag_started)
-                tile.dragFinished.connect(self.on_drag_finished)
-            print("✅ Сигналы плиток подключены")
-        except Exception as e:
-            print(f"❌ Ошибка подключения сигналов плиток: {e}")
-    
-    def on_drag_started(self):
-        """Начало перетаскивания — блокируем редактирование всех существующих полей"""
-        print("🔄 НАЧАЛО ПЕРЕТАСКИВАНИЯ - БЛОКИРУЕМ ПОЛЯ!")
-        self.drag_active = True
-        self._block_all_fields(True)
-        
-        # Визуальный отклик контейнера
-        if hasattr(self, 'fields_container'):
-            self.fields_container.setProperty("dragOver", True)
-            self.fields_container.style().polish(self.fields_container)
-    
-    def on_drag_finished(self):
-        """Конец перетаскивания — возвращаем поля в рабочее состояние"""
-        print("✅ ЗАВЕРШЕНИЕ ПЕРЕТАСКИВАНИЯ - РАЗБЛОКИРУЕМ ПОЛЯ!")
-        self.drag_active = False
-        self._block_all_fields(False)
-        
-        if hasattr(self, 'fields_container'):
-            self.fields_container.setProperty("dragOver", False)
-            self.fields_container.style().polish(self.fields_container)
-        
-        if self.current_field:
-            self.properties_panel.set_field(self.current_field)
-    
-    def _block_all_fields(self, block: bool):
-        """Массовое управление доступностью полей"""
-        try:
-            if not hasattr(self, 'fields_layout'):
-                return
-                
-            for i in range(self.fields_layout.count()):
-                item = self.fields_layout.itemAt(i)
-                if item and item.widget() and isinstance(item.widget(), FieldRow):
-                    field_widget = item.widget()
-                    # Блокируем ввод (QLineEdit станет серым) и кнопки
-                    field_widget.setEnabled(not block)
-                    # Строго запрещаем принимать Drop, чтобы данные не попали в QLineEdit
-                    field_widget.setAcceptDrops(False)
-                    if block:
-                        field_widget.set_selected(False)
-            
-            # Блокируем сопутствующие панели
-            if hasattr(self, 'add_field_btn'):
-                self.add_field_btn.setEnabled(not block)
-            if hasattr(self, 'table_list'):
-                self.table_list.setEnabled(not block)
-                
-        except Exception as e:
-            print(f"Ошибка при (раз)блокировке: {e}")
-    
-    def _setup_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        
-        # Левая панель
-        self.table_list = TableListPanel()
-        self.table_list.tableSelected.connect(self._on_table_selected)
-        self.table_list.tableCreated.connect(self._on_table_created)
-        layout.addWidget(self.table_list)
-        
-        # Центральная область
-        center_panel = QWidget()
-        center_layout = QVBoxLayout(center_panel)
-        center_layout.setContentsMargins(0, 0, 0, 0)
-        center_layout.setSpacing(0)
-        
-        # Верхняя часть - информация о таблице
-        table_info = QWidget()
-        table_info.setStyleSheet("background-color: #1e293b; border-bottom: 1px solid #334155;")
-        info_layout = QHBoxLayout(table_info)
-        info_layout.setContentsMargins(15, 5, 15, 5)
-        
-        info_layout.addWidget(QLabel("Таблица:"))
-        
-        self.table_name_label = QLabel("—")
-        self.table_name_label.setStyleSheet("color: #3b82f6; font-weight: bold; font-size: 13px;")
-        info_layout.addWidget(self.table_name_label)
-        
-        self.table_name_edit = QLineEdit()
-        self.table_name_edit.hide()
-        self.table_name_edit.setFixedWidth(180)
-        self.table_name_edit.setFixedHeight(24)
-        self.table_name_edit.returnPressed.connect(self._save_table_name)
-        info_layout.addWidget(self.table_name_edit)
-        
-        edit_name_btn = QPushButton("✏️")
-        edit_name_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        edit_name_btn.setFixedSize(24, 24)
-        edit_name_btn.setToolTip("Изменить название")
-        edit_name_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3b82f6;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #2563eb;
-            }
-        """)
-        edit_name_btn.clicked.connect(self._edit_table_name)
-        info_layout.addWidget(edit_name_btn)
-        
-        info_layout.addStretch()
-        center_layout.addWidget(table_info)
-        
-        # Контейнер для полей с прокруткой
-        fields_container = QWidget()
-        fields_container.setStyleSheet("background-color: #0f172a;")
-        container_layout = QVBoxLayout(fields_container)
-        container_layout.setContentsMargins(15, 10, 15, 10)
-        container_layout.setSpacing(8)
-        
-        # Заголовок с кнопкой добавления
-        header_layout = QHBoxLayout()
-        header_layout.setSpacing(5)
-        
-        header = QLabel("📋 ПОЛЯ ТАБЛИЦЫ")
-        header.setStyleSheet("color: #3b82f6; font-size: 14px; font-weight: bold;")
-        header_layout.addWidget(header)
-        
-        header_layout.addStretch()
-        
-        self.add_field_btn = QPushButton("➕ Добавить поле")
-        self.add_field_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.add_field_btn.setFixedSize(100, 24)
-        self.add_field_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #10b981;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                font-weight: 500;
-                font-size: 11px;
-            }
-            QPushButton:hover {
-                background-color: #059669;
-            }
-        """)
-        self.add_field_btn.clicked.connect(self._add_field_manually)
-        header_layout.addWidget(self.add_field_btn)
-        
-        container_layout.addLayout(header_layout)
-        
-        # Область для полей с прокруткой
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
-        self.scroll_area.setStyleSheet("""
-            QScrollArea {
-                border: 1px solid #334155;
-                border-radius: 4px;
-                background-color: #1e293b;
-            }
-            QScrollBar:vertical {
-                background-color: #1e293b;
-                width: 8px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #475569;
-                border-radius: 4px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #3b82f6;
-            }
-        """)
-        
-        # КОНТЕЙНЕР ДЛЯ ПОЛЕЙ - ТОЛЬКО ОН ПРИНИМАЕТ DROP
-        self.fields_container = QWidget()
-        self.fields_container.setAcceptDrops(True)
-        self.fields_container.setStyleSheet("""
+        self.fields = []  # список полей текущей таблицы
+
+        self.setup_ui()
+        self.connect_signals()
+
+    def setup_ui(self):
+        """Создание интерфейса конструктора"""
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(1)
+
+        # ===== ЛЕВАЯ ПАНЕЛЬ =====
+        self.left_panel = QWidget()
+        self.left_panel.setFixedWidth(250)
+        self.left_panel.setStyleSheet("""
             QWidget {
-                background-color: transparent;
-            }
-            QWidget[dragOver="true"] {
-                background-color: rgba(59, 130, 246, 0.1);
-                border: 2px dashed #3b82f6;
+                background-color: #1e1e1e;
+                border-right: 1px solid #3c3c3c;
             }
         """)
-        
+
+        left_layout = QVBoxLayout(self.left_panel)
+        left_layout.setContentsMargins(8, 8, 8, 8)
+        left_layout.setSpacing(8)
+
+        # Заголовок
+        title = QLabel("КОНСТРУКТОР ТАБЛИЦ")
+        title.setStyleSheet("""
+            QLabel {
+                color: #4ec9b0;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 4px;
+                border-bottom: 1px solid #3c3c3c;
+            }
+        """)
+        left_layout.addWidget(title)
+
+        # Список таблиц
+        self.table_list = TableListPanel(self.project_manager)
+        self.table_list.tableSelected.connect(self.on_table_selected)
+        self.table_list.tableCreated.connect(self.on_table_created)
+        self.table_list.tableDeleted.connect(self.on_table_deleted)
+        left_layout.addWidget(self.table_list, 1)
+
+        main_layout.addWidget(self.left_panel)
+
+        # ===== ЦЕНТРАЛЬНАЯ ОБЛАСТЬ =====
+        # Вертикальный сплиттер для конструктора и просмотра
+        self.vsplitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Верхняя часть - конструктор полей (2/3)
+        self.designer_widget = self.create_designer_area()
+        self.vsplitter.addWidget(self.designer_widget)
+
+        # Нижняя часть - просмотр таблицы (1/3)
+        self.table_viewer = TableViewer()
+        self.vsplitter.addWidget(self.table_viewer)
+
+        # Устанавливаем соотношение 2:1
+        self.vsplitter.setSizes([666, 333])
+
+        main_layout.addWidget(self.vsplitter, 1)
+
+        # ===== ПРАВАЯ ПАНЕЛЬ =====
+        self.right_panel = QWidget()
+        self.right_panel.setFixedWidth(300)
+        self.right_panel.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+                border-left: 1px solid #3c3c3c;
+            }
+        """)
+
+        right_layout = QVBoxLayout(self.right_panel)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        # Панель свойств
+        self.properties_panel = PropertyPanel()
+        self.properties_panel.propertyChanged.connect(self.on_property_changed)
+
+        right_layout.addWidget(self.properties_panel)
+
+        main_layout.addWidget(self.right_panel)
+
+    def create_designer_area(self):
+        """Создаёт область конструктора полей"""
+        widget = QWidget()
+        widget.setStyleSheet("""
+            QWidget {
+                background-color: #252526;
+            }
+        """)
+
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
+
+        # Панель с плитками полей
+        self.tile_panel = FieldTilePanel()
+        self.tile_panel.fieldTileClicked.connect(self.on_field_tile_clicked)
+        layout.addWidget(self.tile_panel)
+
+        # Область для размещения полей таблицы
+        self.fields_area = QScrollArea()
+        self.fields_area.setWidgetResizable(True)
+        self.fields_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.fields_area.setStyleSheet("""
+            QScrollArea {
+                background-color: #1e1e1e;
+                border: 1px solid #3c3c3c;
+                border-radius: 4px;
+            }
+        """)
+
+        self.fields_container = QWidget()
+        self.fields_container.setStyleSheet("background-color: #1e1e1e;")
+
         self.fields_layout = QVBoxLayout(self.fields_container)
-        self.fields_layout.setContentsMargins(4, 4, 4, 4)
-        self.fields_layout.setSpacing(2)
+        self.fields_layout.setContentsMargins(8, 8, 8, 8)
+        self.fields_layout.setSpacing(4)
         self.fields_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        
-        # Подсказка
-        self.drop_hint = QLabel("Перетащите типы полей сюда")
-        self.drop_hint.setStyleSheet("color: #64748b; font-size: 12px; padding: 20px;")
-        self.drop_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.fields_layout.addWidget(self.drop_hint)
-        
-        self.scroll_area.setWidget(self.fields_container)
-        container_layout.addWidget(self.scroll_area, 1)
-        
-        center_layout.addWidget(fields_container, 1)
-        
-        # Нижняя часть - панель свойств
-        self.properties_panel = PropertiesPanel()
-        self.properties_panel.setMaximumHeight(220)
-        center_layout.addWidget(self.properties_panel)
-        
-        layout.addWidget(center_panel, 1)
-        
-        # Правая панель
-        self.field_tiles = FieldTilePanel()
-        layout.addWidget(self.field_tiles)
-        
-        # Подключаем события для контейнера
-        self.fields_container.dragEnterEvent = self.container_dragEnterEvent
-        self.fields_container.dragMoveEvent = self.container_dragMoveEvent
-        self.fields_container.dragLeaveEvent = self.container_dragLeaveEvent
-        self.fields_container.dropEvent = self.container_dropEvent
-    
-    def _load_project_tables(self):
-        if not self.project_manager.current_project:
-            return
-        
-        for table_data in self.project_manager.current_project.tables:
-            self.table_list.add_table(table_data)
-        
-        self.properties_panel.set_tables(self.table_list.get_tables())
-    
-    def _on_table_selected(self, table_data: dict):
+
+        self.fields_area.setWidget(self.fields_container)
+        layout.addWidget(self.fields_area, 1)
+
+        # Кнопки управления
+        btn_layout = QHBoxLayout()
+
+        self.save_btn = QPushButton("💾 Сохранить таблицу")
+        self.save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0e639c;
+                color: white;
+                border: none;
+                padding: 8px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1177bb;
+            }
+        """)
+        self.save_btn.clicked.connect(self.save_table)
+
+        self.preview_btn = QPushButton("👁️ Предпросмотр")
+        self.preview_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4c4c4c;
+                color: white;
+                border: none;
+                padding: 8px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #5c5c5c;
+            }
+        """)
+        self.preview_btn.clicked.connect(self.toggle_preview)
+
+        btn_layout.addWidget(self.save_btn)
+        btn_layout.addWidget(self.preview_btn)
+
+        layout.addLayout(btn_layout)
+
+        return widget
+
+    def connect_signals(self):
+        """Подключает сигналы"""
+        # Здесь можно добавить дополнительные соединения
+        pass
+
+    # ========== МЕТОДЫ ДЛЯ РАБОТЫ С ТАБЛИЦАМИ ==========
+
+    def on_table_selected(self, table_data):
+        """Выбрана таблица в списке"""
         self.current_table = table_data
-        self.fields = table_data.get('fields', [])
-        self.table_name_label.setText(table_data['name_ru'])
-        self.table_name_label.show()
-        self.table_name_edit.hide()
-        self.properties_panel.set_current_table(table_data['id'])
-        self._refresh_fields_display()
-        self.current_field = None
-        self.properties_panel.set_field(None)
-    
-    def _on_table_created(self):
-        self._save_table_data()
-        self.properties_panel.set_tables(self.table_list.get_tables())
-    
-    def _edit_table_name(self):
-        if not self.current_table:
-            return
-        self.table_name_label.hide()
-        self.table_name_edit.setText(self.current_table['name_ru'])
-        self.table_name_edit.show()
-        self.table_name_edit.setFocus()
-        self.table_name_edit.selectAll()
-    
-    def _save_table_name(self):
-        if not self.current_table:
-            return
-        new_name = self.table_name_edit.text().strip()
-        if new_name:
-            self.current_table['name_ru'] = new_name
-            self.current_table['name_en'] = Translator.to_english(new_name)
-            self.table_list.update_table(self.current_table)
-            self.table_name_label.setText(new_name)
-        self.table_name_label.show()
-        self.table_name_edit.hide()
-        self._save_table_data()
-    
-    def _refresh_fields_display(self):
-        for i in reversed(range(self.fields_layout.count())):
-            item = self.fields_layout.itemAt(i)
-            if item and item.widget() and item.widget() != self.drop_hint:
+        self.load_table_fields(table_data)
+
+        # Загружаем данные таблицы для просмотра
+        data = self.project_manager.get_table_data(table_data['id'])
+        self.table_viewer.set_table(table_data, data)
+
+        # Показываем свойства таблицы
+        self.properties_panel.set_table(table_data)
+
+        self.tableChanged.emit()
+
+    def on_table_created(self, table_data):
+        """Создана новая таблица"""
+        self.current_table = table_data
+        self.clear_fields()
+        self.properties_panel.set_table(table_data)
+
+    def on_table_deleted(self, table_id):
+        """Удалена таблица"""
+        if self.current_table and self.current_table['id'] == table_id:
+            self.current_table = None
+            self.clear_fields()
+            self.properties_panel.clear()
+
+    def load_table_fields(self, table_data):
+        """Загружает поля таблицы"""
+        self.clear_fields()
+        fields = table_data.get('fields', [])
+
+        for field in fields:
+            self.add_field_widget(field)
+
+    def clear_fields(self):
+        """Очищает область полей"""
+        while self.fields_layout.count():
+            item = self.fields_layout.takeAt(0)
+            if item.widget():
                 item.widget().deleteLater()
-        
-        if not self.fields:
-            self.drop_hint.show()
+        self.fields = []
+
+    def add_field_widget(self, field_data):
+        """Добавляет виджет поля в область"""
+        from .field_widget import FieldWidget
+
+        widget = FieldWidget(field_data)
+        widget.fieldClicked.connect(self.on_field_clicked)
+        widget.fieldMoved.connect(self.on_field_moved)
+        widget.fieldDeleted.connect(self.on_field_deleted)
+
+        self.fields_layout.addWidget(widget)
+        self.fields.append({
+            'widget': widget,
+            'data': field_data
+        })
+
+    # ========== МЕТОДЫ ДЛЯ РАБОТЫ С ПОЛЯМИ ==========
+
+    def on_field_tile_clicked(self, field_type):
+        """Клик по плитке поля - создание нового поля"""
+        if not self.current_table:
+            QMessageBox.warning(self, "Внимание", "Сначала выберите или создайте таблицу")
             return
-        
-        self.drop_hint.hide()
-        
-        for i, field_data in enumerate(self.fields):
-            row = FieldRow(field_data, i, self.table_list.get_tables(), self)
-            row.movedUp.connect(self._move_field_up)
-            row.movedDown.connect(self._move_field_down)
-            row.removed.connect(self._remove_field)
-            row.selected.connect(self._on_field_selected)
-            row.name_edit.textChanged.connect(self._on_field_name_changed)
-            
-            # Запрещаем принимать drop
-            row.setAcceptDrops(False)
-            
-            self.fields_layout.addWidget(row)
-        
-        self._update_field_buttons_state()
-    
-    def _move_field_up(self, row: FieldRow):
-        if self.drag_active:
-            return
-        current_index = self.fields_layout.indexOf(row)
-        if current_index > 0:
-            self.fields_layout.removeWidget(row)
-            self.fields_layout.insertWidget(current_index - 1, row)
-            row_data = self.fields.pop(current_index)
-            self.fields.insert(current_index - 1, row_data)
-            self._renumber_fields()
-            self._update_field_buttons_state()
-            self._save_table_data()
-    
-    def _move_field_down(self, row: FieldRow):
-        if self.drag_active:
-            return
-        current_index = self.fields_layout.indexOf(row)
-        if current_index < len(self.fields) - 1:
-            self.fields_layout.removeWidget(row)
-            self.fields_layout.insertWidget(current_index + 1, row)
-            row_data = self.fields.pop(current_index)
-            self.fields.insert(current_index + 1, row_data)
-            self._renumber_fields()
-            self._update_field_buttons_state()
-            self._save_table_data()
-    
-    def _renumber_fields(self):
-        for i in range(self.fields_layout.count()):
-            item = self.fields_layout.itemAt(i)
-            if item and item.widget() and isinstance(item.widget(), FieldRow):
-                item.widget().set_index(i)
-    
-    def _update_field_buttons_state(self):
-        if self.drag_active:
-            return
-        fields = []
-        for i in range(self.fields_layout.count()):
-            item = self.fields_layout.itemAt(i)
-            if item and item.widget() and isinstance(item.widget(), FieldRow):
-                fields.append(item.widget())
-        for i, widget in enumerate(fields):
-            widget.set_buttons_state(i == 0, i == len(fields) - 1)
-    
-    def _on_field_selected(self, field_data: dict):
-        if self.drag_active:
-            return
-        self.current_field = field_data
-        for i in range(self.fields_layout.count()):
-            item = self.fields_layout.itemAt(i)
-            if item and item.widget() and isinstance(item.widget(), FieldRow):
-                item.widget().set_selected(item.widget().field_data['id'] == field_data['id'])
-        self.properties_panel.set_field(field_data)
-        print(f"✅ Поле выбрано: {field_data.get('name_ru', 'без имени')}")
-    
-    def _on_field_name_changed(self):
-        if self.drag_active:
-            return
-        self._save_table_data()
-    
-    def _remove_field(self, row: FieldRow):
-        if self.drag_active:
-            return
-        if row.field_data in self.fields:
-            index = self.fields.index(row.field_data)
-            self.fields.pop(index)
-            row.deleteLater()
-            self._renumber_fields()
-            self._update_field_buttons_state()
-            if self.current_field and self.current_field['id'] == row.field_data['id']:
-                self.current_field = None
-                self.properties_panel.set_field(None)
-            self._save_table_data()
-    
-    def _on_properties_changed(self, properties: dict):
-        if self.drag_active or not self.current_field:
-            return
-        self.current_field.update(properties)
-        for i in range(self.fields_layout.count()):
-            item = self.fields_layout.itemAt(i)
-            if item and item.widget() and isinstance(item.widget(), FieldRow):
-                if item.widget().field_data['id'] == self.current_field['id']:
-                    item.widget().update_from_properties(properties)
-                    break
-        self._save_table_data()
-    
-    def _create_field_from_type(self, type_id: str) -> dict:
-        from platform.core.field_types import FieldType
-        icon, full_type_name, desc, tid = FieldType.get_type_by_id(type_id)
-        field_id = f"field_{len(self.fields)}_{Translator.to_english(full_type_name)}_{len(self.fields)}"
-        return {
-            'id': field_id,
-            'name_ru': '',
-            'name_en': '',
-            'type': full_type_name,
-            'type_id': type_id,
+
+        # Создаём новое поле
+        field_data = self.create_new_field(field_type)
+        self.add_field_widget(field_data)
+
+        # Выделяем новое поле
+        self.on_field_clicked(field_data)
+
+    def create_new_field(self, field_type):
+        """Создаёт новое поле заданного типа"""
+        from ..core.field_types import FieldType
+
+        # Определяем тип
+        if isinstance(field_type, str):
+            try:
+                type_enum = FieldType[field_type]
+            except:
+                type_enum = FieldType.TEXT
+        else:
+            type_enum = field_type
+
+        # Базовая структура поля
+        field = {
+            'id': f"field_{len(self.fields) + 1}",
+            'display_name': f"Поле {len(self.fields) + 1}",
+            'type': type_enum,
             'required': False,
             'unique': False,
-            'default': None,
-            'format': {}
+            'default': '',
+            'description': '',
+            'width': 150,
+            'visible': True,
+            'readonly': False
         }
-    
-    def _add_field_manually(self):
-        if self.drag_active or not self.current_table:
-            return
-        types = [f"{icon} {name}" for icon, name, _, _ in FieldType.TYPES]
-        type_name, ok = QInputDialog.getItem(self, "Выберите тип поля", "Тип:", types, 0, False)
-        if ok and type_name:
-            clean_name = type_name.split(' ', 1)[-1] if ' ' in type_name else type_name
-            type_id = FieldType.get_type_id(clean_name)
-            field_data = self._create_field_from_type(type_id)
-            self.fields.append(field_data)
-            self._refresh_fields_display()
-            self._save_table_data()
-            self.current_field = field_data
-            self.properties_panel.set_field(field_data)
-            QTimer.singleShot(100, self._scroll_to_bottom)
-    
-    def _scroll_to_bottom(self):
-        if self.scroll_area:
-            self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
-    
-    # ==================== DRAG & DROP МЕТОДЫ ДЛЯ КОНТЕЙНЕРА ====================
-    
-    def container_dragEnterEvent(self, event):
-        if event.mimeData().hasText():
-            event.acceptProposedAction()
-        else:
-            event.ignore()
-    
-    def container_dragMoveEvent(self, event):
-        if event.mimeData().hasText():
-            event.acceptProposedAction()
-    
-    def container_dragLeaveEvent(self, event):
-        if hasattr(self, 'fields_container'):
-            self.fields_container.setProperty("dragOver", False)
-            self.fields_container.style().polish(self.fields_container)
-    
-    def container_dropEvent(self, event):
-        try:
-            # Разблокируем все сразу после сброса
-            self.on_drag_finished()
-            
-            if not self.current_table:
-                QMessageBox.warning(self, "Внимание", "Сначала выберите таблицу")
-                return
-            
-            text = event.mimeData().text()
-            if text:
-                type_id = text.split(':')[0]
-                field_data = self._create_field_from_type(type_id)
-                self.fields.append(field_data)
-                self._refresh_fields_display()
-                self._save_table_data()
-                
-                # Авто-прокрутка вниз к новому полю
-                QTimer.singleShot(100, self._scroll_to_bottom)
-                event.acceptProposedAction()
-        except Exception as e:
-            print(f"Ошибка при сбросе поля: {e}")
-    
-    def _save_table_data(self):
-        if not self.current_table or self.drag_active:
-            return
-        self.current_table['fields'] = self.fields
-        found = False
-        for i, table in enumerate(self.project_manager.current_project.tables):
-            if table['id'] == self.current_table['id']:
-                self.project_manager.current_project.tables[i] = self.current_table
-                found = True
+
+        # Добавляем специфические свойства в зависимости от типа
+        type_name = type_enum.value if hasattr(type_enum, 'value') else str(type_enum)
+
+        if type_name in ['TEXT', 'Текст']:
+            field['text_format'] = 'Как написано'
+            field['max_length'] = 255
+            field['input_mask'] = 'Без маски'
+
+        elif type_name in ['TEXT_MULTILINE', 'Многострочный текст']:
+            field['multiline_format'] = 'Обычный текст'
+            field['height'] = 5
+            field['word_wrap'] = True
+
+        elif type_name in ['INTEGER', 'Целое число']:
+            field['min_value'] = 0
+            field['max_value'] = 100
+            field['use_thousands'] = False
+
+        elif type_name in ['FLOAT', 'Дробное число']:
+            field['decimals'] = 2
+            field['min_value'] = 0
+            field['max_value'] = 100
+            field['use_thousands'] = False
+
+        elif type_name in ['MONEY', 'Деньги']:
+            field['currency'] = '₽ (Рубль)'
+            field['decimals'] = 2
+            field['min_value'] = 0
+            field['max_value'] = 999999
+
+        elif type_name in ['PERCENT', 'Процент']:
+            field['decimals'] = 1
+            field['show_percent_sign'] = True
+            field['min_value'] = 0
+            field['max_value'] = 100
+
+        elif type_name in ['DATE', 'Дата']:
+            field['date_format'] = 'ДД.ММ.ГГГГ'
+            field['time_format'] = 'Без времени'
+            field['auto_current'] = False
+
+        elif type_name in ['LIST', 'Список']:
+            field['options'] = ['Вариант 1', 'Вариант 2', 'Вариант 3']
+            field['list_type'] = 'Выпадающий список'
+            field['sort_type'] = 'Как введено'
+
+        elif type_name in ['REFERENCE', 'Ссылка']:
+            field['reference_table'] = ''
+            field['reference_display'] = ''
+            field['relation_type'] = 'Одна запись'
+
+        elif type_name in ['CALCULATED', 'Вычисляемое']:
+            field['formula'] = ''
+            field['result_type'] = 'Текст'
+
+        return field
+
+    def on_field_clicked(self, field_data):
+        """Клик по полю - выделение и показ свойств"""
+        self.current_field = field_data
+
+        # Снимаем выделение со всех полей
+        for field in self.fields:
+            field['widget'].set_selected(False)
+
+        # Выделяем текущее поле
+        for field in self.fields:
+            if field['data']['id'] == field_data['id']:
+                field['widget'].set_selected(True)
                 break
-        if not found:
-            self.project_manager.current_project.tables.append(self.current_table)
-        self.project_manager.save_project()
-    
-    def can_close(self) -> bool:
-        return True
+
+        # Показываем свойства поля
+        self.properties_panel.set_field(field_data)
+        self.table_viewer.on_field_selected(field_data)
+        self.fieldSelected.emit(field_data)
+
+    def on_field_moved(self, from_index, to_index):
+        """Перемещение поля"""
+        if 0 <= from_index < len(self.fields) and 0 <= to_index < len(self.fields):
+            # Перемещаем в списке
+            field = self.fields.pop(from_index)
+            self.fields.insert(to_index, field)
+
+            # Перемещаем виджет
+            widget = field['widget']
+            self.fields_layout.removeWidget(widget)
+            self.fields_layout.insertWidget(to_index, widget)
+
+            # Обновляем порядок
+            self.update_field_order()
+
+    def on_field_deleted(self, field_data):
+        """Удаление поля"""
+        reply = QMessageBox.question(
+            self, "Подтверждение",
+            f"Удалить поле '{field_data.get('display_name', '')}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            # Находим и удаляем
+            for i, field in enumerate(self.fields):
+                if field['data']['id'] == field_data['id']:
+                    field['widget'].deleteLater()
+                    self.fields.pop(i)
+                    break
+
+            if self.current_field and self.current_field['id'] == field_data['id']:
+                self.current_field = None
+                self.properties_panel.clear()
+
+            self.update_field_order()
+
+    def on_property_changed(self, prop_name, value):
+        """Изменение свойства в панели"""
+        if self.current_field:
+            self.current_field[prop_name] = value
+
+            # Обновляем отображение поля
+            for field in self.fields:
+                if field['data']['id'] == self.current_field['id']:
+                    field['widget'].update_display(self.current_field)
+                    break
+
+    def update_field_order(self):
+        """Обновляет порядок полей"""
+        for i, field in enumerate(self.fields):
+            field['data']['order'] = i
+
+    # ========== МЕТОДЫ СОХРАНЕНИЯ ==========
+
+    def save_table(self):
+        """Сохраняет текущую таблицу"""
+        if not self.current_table:
+            QMessageBox.warning(self, "Внимание", "Нет таблицы для сохранения")
+            return
+
+        # Собираем поля
+        fields_data = [field['data'] for field in self.fields]
+
+        # Обновляем таблицу в project_manager
+        self.current_table['fields'] = fields_data
+        self.project_manager.update_table(self.current_table)
+
+        # Обновляем список таблиц
+        self.table_list.refresh()
+
+        QMessageBox.information(self, "Успех", "Таблица сохранена")
+
+    def toggle_preview(self):
+        """Переключает режим предпросмотра"""
+        # TODO: реализовать предпросмотр формы
+        pass

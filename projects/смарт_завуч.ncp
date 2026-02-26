@@ -3,7 +3,7 @@
   "description": "",
   "author": "",
   "created": "2026-02-25T22:38:25.197310",
-  "modified": "2026-02-26T20:17:20.200489",
+  "modified": "2026-02-26T23:19:18.025975",
   "theme": "dark_blue",
   "database_type": "sqlite",
   "tables": [
@@ -52,6 +52,28 @@
           "name_en": "",
           "type": "Вычисляемое",
           "type_id": "formula",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_4_vremya_4",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Время",
+          "type_id": "time",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_5_mnozhestvennaya_ssylka_5",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Множественная ссылка",
+          "type_id": "reference_multiple",
           "required": false,
           "unique": false,
           "default": null,
