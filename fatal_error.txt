@@ -1,0 +1,18 @@
+Тип: <class 'NameError'>
+Значение: name 'FieldTile' is not defined
+
+Traceback:
+  File "C:\Users\ILMAR\Desktop\Моё приложение\platform\main_window.py", line 410, in _open_project
+    self._open_table_designer()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\ILMAR\Desktop\Моё приложение\platform\main_window.py", line 422, in _open_table_designer
+    designer = TableDesignerWidget(self.project_manager)
+  File "C:\Users\ILMAR\Desktop\Моё приложение\platform\designers\table_designer.py", line 33, in __init__
+    self._setup_ui()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\ILMAR\Desktop\Моё приложение\platform\designers\table_designer.py", line 236, in _setup_ui
+    self._connect_all_tiles()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\ILMAR\Desktop\Моё приложение\platform\designers\table_designer.py", line 247, in _connect_all_tiles
+    for tile in self.findChildren(FieldTile):
+                                  ^^^^^^^^^

@@ -1,0 +1,188 @@
+{
+  "name": "Смарт Завуч",
+  "description": "",
+  "author": "",
+  "created": "2026-02-25T22:38:25.197310",
+  "modified": "2026-02-26T20:17:20.200489",
+  "theme": "dark_blue",
+  "database_type": "sqlite",
+  "tables": [
+    {
+      "id": "table_0_f_1",
+      "name_ru": "1",
+      "name_en": "f_1",
+      "icon": "📊",
+      "fields": [
+        {
+          "id": "field_0_tekst_0",
+          "name_ru": "прпр",
+          "name_en": "prpr",
+          "type": "Текст",
+          "type_id": "text",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_1_data_1",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Дата",
+          "type_id": "date",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_2_mnozhestvennaya_ssylka_2",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Множественная ссылка",
+          "type_id": "reference_multiple",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_3_vychislyaemoe_3",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Вычисляемое",
+          "type_id": "formula",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        }
+      ],
+      "references": [],
+      "referenced_by": []
+    },
+    {
+      "id": "table_1_f_2",
+      "name_ru": "2",
+      "name_en": "f_2",
+      "icon": "📊",
+      "fields": [
+        {
+          "id": "field_0_tekst_0",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Текст",
+          "type_id": "text",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_2_chislo_tseloe_2",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Число целое",
+          "type_id": "integer",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_2_vremya_2",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Время",
+          "type_id": "time",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_3_chislo_tseloe_3",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Число целое",
+          "type_id": "integer",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_4_tekst_4",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Текст",
+          "type_id": "text",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_5_ssylka_5",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Ссылка",
+          "type_id": "reference",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_6_data_6",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Дата",
+          "type_id": "date",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_7_spisok_7",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Список",
+          "type_id": "list",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_8_spisok_8",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Список",
+          "type_id": "list",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        },
+        {
+          "id": "field_9_dengi_9",
+          "name_ru": "",
+          "name_en": "",
+          "type": "Деньги",
+          "type_id": "money",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        }
+      ],
+      "references": [],
+      "referenced_by": []
+    }
+  ],
+  "forms": [],
+  "reports": [],
+  "menus": []
+}

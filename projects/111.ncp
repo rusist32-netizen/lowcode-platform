@@ -1,0 +1,35 @@
+{
+  "name": "111",
+  "description": "",
+  "author": "",
+  "created": "2026-02-25T23:18:33.477179",
+  "modified": "2026-02-26T14:42:35.012228",
+  "theme": "dark_blue",
+  "database_type": "sqlite",
+  "tables": [
+    {
+      "id": "table_0_f_1",
+      "name_ru": "1",
+      "name_en": "f_1",
+      "icon": "📊",
+      "fields": [
+        {
+          "id": "field_0_tekst_0",
+          "name_ru": "text",
+          "name_en": "text",
+          "type": "Текст",
+          "type_id": "text",
+          "required": false,
+          "unique": false,
+          "default": null,
+          "format": {}
+        }
+      ],
+      "references": [],
+      "referenced_by": []
+    }
+  ],
+  "forms": [],
+  "reports": [],
+  "menus": []
+}
