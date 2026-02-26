@@ -1,431 +1,399 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
-Главное окно с ленточным меню
+Главное окно приложения
 """
 
-import sys
 import os
+import sys
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 
 from platform.project_manager import ProjectManager
 from platform.start_page import StartPage
-from platform.designers.table_designer import TableDesignerWidget  # ← ИСПРАВЛЕНО!
-
-
-class RibbonButton(QToolButton):
-    """Кнопка в ленточном меню"""
-    
-    def __init__(self, text: str, icon_text: str = "", parent=None):
-        super().__init__(parent)
-        
-        self.setText(text)
-        if icon_text:
-            self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-            self.setIcon(self._create_icon(icon_text))
-        
-        self.setFixedSize(70, 60)
-        self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.setStyleSheet("""
-            QToolButton {
-                background-color: transparent;
-                color: #e2e8f0;
-                border: none;
-                border-radius: 4px;
-                font-size: 11px;
-                padding: 5px;
-            }
-            QToolButton:hover {
-                background-color: #3b82f6;
-            }
-            QToolButton:pressed {
-                background-color: #2563eb;
-            }
-            QToolButton::menu-indicator {
-                image: none;
-            }
-        """)
-    
-    def _create_icon(self, text: str) -> QIcon:
-        pixmap = QPixmap(32, 32)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        
-        painter = QPainter(pixmap)
-        painter.setPen(QColor("#e2e8f0"))
-        painter.setFont(QFont("Segoe UI", 16))
-        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, text)
-        painter.end()
-        
-        return QIcon(pixmap)
-
-
-class RibbonBar(QWidget):
-    """Ленточное меню"""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        
-        self.setFixedHeight(120)
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #1e293b;
-                border-bottom: 2px solid #3b82f6;
-            }
-        """)
-        
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        
-        self.tabs_bar = QTabBar()
-        self.tabs_bar.setExpanding(False)
-        self.tabs_bar.setDrawBase(False)
-        self.tabs_bar.setStyleSheet("""
-            QTabBar::tab {
-                background-color: transparent;
-                color: #94a3b8;
-                padding: 8px 20px;
-                margin-top: 5px;
-                font-size: 12px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-            }
-            QTabBar::tab:hover {
-                background-color: #2d3a4f;
-                color: #e2e8f0;
-            }
-            QTabBar::tab:selected {
-                background-color: #3b82f6;
-                color: white;
-            }
-        """)
-        
-        tabs = ["Файл", "Конструктор", "Формы", "Отчеты", "Логика", "Сервис", "Вид", "?"]
-        for tab in tabs:
-            self.tabs_bar.addTab(tab)
-        
-        self.tabs_bar.setCurrentIndex(1)
-        
-        layout.addWidget(self.tabs_bar)
-        
-        self.stack = QStackedWidget()
-        layout.addWidget(self.stack)
-        
-        self._create_file_tab()
-        self._create_designer_tab()
-        self._create_forms_tab()
-        self._create_reports_tab()
-        self._create_logic_tab()
-        self._create_service_tab()
-        self._create_view_tab()
-        self._create_help_tab()
-        
-        self.tabs_bar.currentChanged.connect(self.stack.setCurrentIndex)
-    
-    def _create_button_group(self, title: str) -> QGroupBox:
-        group = QGroupBox(title)
-        group.setStyleSheet("""
-            QGroupBox {
-                color: #94a3b8;
-                border: 1px solid #334155;
-                border-radius: 4px;
-                margin-top: 10px;
-                font-size: 11px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-            }
-        """)
-        
-        layout = QHBoxLayout(group)
-        layout.setContentsMargins(5, 15, 5, 5)
-        layout.setSpacing(5)
-        
-        return group
-    
-    def _create_file_tab(self):
-        tab = QWidget()
-        layout = QHBoxLayout(tab)
-        layout.setContentsMargins(10, 5, 10, 5)
-        layout.setSpacing(20)
-        
-        project_group = self._create_button_group("Проект")
-        project_group.layout().addWidget(RibbonButton("Новый", "📁"))
-        project_group.layout().addWidget(RibbonButton("Открыть", "📂"))
-        project_group.layout().addWidget(RibbonButton("Сохранить", "💾"))
-        layout.addWidget(project_group)
-        
-        export_group = self._create_button_group("Экспорт")
-        export_group.layout().addWidget(RibbonButton("Excel", "📊"))
-        export_group.layout().addWidget(RibbonButton("PDF", "📄"))
-        export_group.layout().addWidget(RibbonButton("JSON", "🔧"))
-        layout.addWidget(export_group)
-        
-        exit_group = self._create_button_group("Выход")
-        exit_group.layout().addWidget(RibbonButton("Закрыть", "❌"))
-        layout.addWidget(exit_group)
-        
-        layout.addStretch()
-        self.stack.addWidget(tab)
-    
-    def _create_designer_tab(self):
-        tab = QWidget()
-        layout = QHBoxLayout(tab)
-        layout.setContentsMargins(10, 5, 10, 5)
-        layout.setSpacing(20)
-        
-        tables_group = self._create_button_group("Таблицы")
-        tables_group.layout().addWidget(RibbonButton("Создать", "➕"))
-        tables_group.layout().addWidget(RibbonButton("Открыть", "📂"))
-        tables_group.layout().addWidget(RibbonButton("Удалить", "🗑️"))
-        layout.addWidget(tables_group)
-        
-        fields_group = self._create_button_group("Поля")
-        fields_group.layout().addWidget(RibbonButton("Добавить", "➕"))
-        fields_group.layout().addWidget(RibbonButton("Изменить", "✏️"))
-        fields_group.layout().addWidget(RibbonButton("Удалить", "❌"))
-        layout.addWidget(fields_group)
-        
-        formats_group = self._create_button_group("Форматы")
-        formats_group.layout().addWidget(RibbonButton("Текст", "📝"))
-        formats_group.layout().addWidget(RibbonButton("Число", "🔢"))
-        formats_group.layout().addWidget(RibbonButton("Дата", "📅"))
-        layout.addWidget(formats_group)
-        
-        view_group = self._create_button_group("Вид")
-        view_group.layout().addWidget(RibbonButton("Обновить", "🔄"))
-        view_group.layout().addWidget(RibbonButton("Свойства", "⚙️"))
-        layout.addWidget(view_group)
-        
-        layout.addStretch()
-        self.stack.addWidget(tab)
-    
-    def _create_forms_tab(self):
-        tab = QWidget()
-        layout = QHBoxLayout(tab)
-        layout.addWidget(QLabel("Конструктор форм (будет позже)"))
-        layout.addStretch()
-        self.stack.addWidget(tab)
-    
-    def _create_reports_tab(self):
-        tab = QWidget()
-        layout = QHBoxLayout(tab)
-        layout.addWidget(QLabel("Конструктор отчетов (будет позже)"))
-        layout.addStretch()
-        self.stack.addWidget(tab)
-    
-    def _create_logic_tab(self):
-        tab = QWidget()
-        layout = QHBoxLayout(tab)
-        layout.addWidget(QLabel("Конструктор логики (будет позже)"))
-        layout.addStretch()
-        self.stack.addWidget(tab)
-    
-    def _create_service_tab(self):
-        tab = QWidget()
-        layout = QHBoxLayout(tab)
-        layout.setContentsMargins(10, 5, 10, 5)
-        layout.setSpacing(20)
-        
-        settings_group = self._create_button_group("Настройки")
-        settings_group.layout().addWidget(RibbonButton("Темы", "🎨"))
-        settings_group.layout().addWidget(RibbonButton("Язык", "🌐"))
-        layout.addWidget(settings_group)
-        
-        tools_group = self._create_button_group("Инструменты")
-        tools_group.layout().addWidget(RibbonButton("Проверка", "✓"))
-        tools_group.layout().addWidget(RibbonButton("Оптимизация", "⚡"))
-        layout.addWidget(tools_group)
-        
-        layout.addStretch()
-        self.stack.addWidget(tab)
-    
-    def _create_view_tab(self):
-        tab = QWidget()
-        layout = QHBoxLayout(tab)
-        layout.setContentsMargins(10, 5, 10, 5)
-        layout.setSpacing(20)
-        
-        panels_group = self._create_button_group("Панели")
-        panels_group.layout().addWidget(RibbonButton("Таблицы", "📋"))
-        panels_group.layout().addWidget(RibbonButton("Типы полей", "🔧"))
-        panels_group.layout().addWidget(RibbonButton("Свойства", "⚙️"))
-        layout.addWidget(panels_group)
-        
-        layout.addStretch()
-        self.stack.addWidget(tab)
-    
-    def _create_help_tab(self):
-        tab = QWidget()
-        layout = QHBoxLayout(tab)
-        layout.setContentsMargins(10, 5, 10, 5)
-        layout.setSpacing(20)
-        
-        help_group = self._create_button_group("Справка")
-        help_group.layout().addWidget(RibbonButton("Справка", "❓"))
-        help_group.layout().addWidget(RibbonButton("О программе", "ℹ️"))
-        layout.addWidget(help_group)
-        
-        layout.addStretch()
-        self.stack.addWidget(tab)
+from platform.designers.table_designer import TableDesigner
+from platform.dialogs.modern_message_box import ModernMessageBox
 
 
 class MainWindow(QMainWindow):
-    """Главное окно"""
-    
+    """
+    Главное окно платформы
+    """
+
     def __init__(self):
         super().__init__()
-        
-        self.project_manager = ProjectManager()
-        
-        self.setWindowTitle("No-Code Platform")
-        self.setGeometry(100, 100, 1400, 900)
-        
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #0f172a;
-            }
-            QStatusBar {
-                background-color: #1e293b;
-                color: #94a3b8;
-                border-top: 1px solid #334155;
-            }
-        """)
-        
-        self._setup_ui()
-        self._show_start_page()
-    
-    def _setup_ui(self):
-        central = QWidget()
-        self.setCentralWidget(central)
-        
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        
-        self.ribbon = RibbonBar()
-        layout.addWidget(self.ribbon)
-        
+        self.project_manager = None
+        self.current_project_path = None
+        self.current_designer = None
+
+        self.setWindowTitle("Low-Code Платформа")
+        self.setGeometry(100, 100, 1400, 800)
+
+        self.setup_ui()
+        self.setup_menu()
+        self.setup_status_bar()
+
+        # Показываем стартовую страницу
+        self.show_start_page()
+
+    def setup_ui(self):
+        """Создание основного интерфейса"""
+        # Центральный виджет с вкладками
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
-        self.tab_widget.tabCloseRequested.connect(self._close_tab)
+        self.tab_widget.tabCloseRequested.connect(self.close_tab)
         self.tab_widget.setStyleSheet("""
             QTabWidget::pane {
-                background-color: #0f172a;
+                background-color: #1e1e1e;
                 border: none;
             }
             QTabBar::tab {
-                background-color: #1e293b;
-                color: #94a3b8;
+                background-color: #2d2d2d;
+                color: #e0e0e0;
                 padding: 8px 16px;
                 margin-right: 2px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
             }
             QTabBar::tab:hover {
-                background-color: #2d3a4f;
-                color: #e2e8f0;
+                background-color: #3c3c3c;
             }
             QTabBar::tab:selected {
-                background-color: #3b82f6;
+                background-color: #0e639c;
                 color: white;
             }
         """)
-        layout.addWidget(self.tab_widget)
-        
+
+        self.setCentralWidget(self.tab_widget)
+
+    def setup_menu(self):
+        """Создание меню приложения"""
+        menubar = self.menuBar()
+        menubar.setStyleSheet("""
+            QMenuBar {
+                background-color: #2d2d2d;
+                color: #e0e0e0;
+                border-bottom: 1px solid #3c3c3c;
+            }
+            QMenuBar::item {
+                padding: 6px 10px;
+            }
+            QMenuBar::item:selected {
+                background-color: #3c3c3c;
+            }
+            QMenu {
+                background-color: #2d2d2d;
+                color: #e0e0e0;
+                border: 1px solid #3c3c3c;
+            }
+            QMenu::item:selected {
+                background-color: #0e639c;
+            }
+        """)
+
+        # Меню Файл
+        file_menu = menubar.addMenu("Файл")
+
+        new_project_action = QAction("Новый проект", self)
+        new_project_action.triggered.connect(self.new_project)
+        file_menu.addAction(new_project_action)
+
+        open_project_action = QAction("Открыть проект", self)
+        open_project_action.triggered.connect(self.open_project)
+        file_menu.addAction(open_project_action)
+
+        file_menu.addSeparator()
+
+        save_project_action = QAction("Сохранить проект", self)
+        save_project_action.triggered.connect(self.save_project)
+        file_menu.addAction(save_project_action)
+
+        save_project_as_action = QAction("Сохранить проект как...", self)
+        save_project_as_action.triggered.connect(self.save_project_as)
+        file_menu.addAction(save_project_as_action)
+
+        file_menu.addSeparator()
+
+        close_project_action = QAction("Закрыть проект", self)
+        close_project_action.triggered.connect(self.close_project)
+        file_menu.addAction(close_project_action)
+
+        file_menu.addSeparator()
+
+        exit_action = QAction("Выход", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # Меню Конструкторы
+        designers_menu = menubar.addMenu("Конструкторы")
+
+        table_designer_action = QAction("Конструктор таблиц", self)
+        table_designer_action.triggered.connect(self.open_table_designer)
+        designers_menu.addAction(table_designer_action)
+
+        form_designer_action = QAction("Конструктор форм", self)
+        form_designer_action.triggered.connect(self.open_form_designer)
+        designers_menu.addAction(form_designer_action)
+
+        report_designer_action = QAction("Конструктор отчётов", self)
+        report_designer_action.triggered.connect(self.open_report_designer)
+        designers_menu.addAction(report_designer_action)
+
+        menu_designer_action = QAction("Конструктор меню", self)
+        menu_designer_action.triggered.connect(self.open_menu_designer)
+        designers_menu.addAction(menu_designer_action)
+
+        logic_designer_action = QAction("Конструктор логики", self)
+        logic_designer_action.triggered.connect(self.open_logic_designer)
+        designers_menu.addAction(logic_designer_action)
+
+        # Меню Справка
+        help_menu = menubar.addMenu("Справка")
+
+        about_action = QAction("О программе", self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+
+    def setup_status_bar(self):
+        """Создание строки статуса"""
+        self.statusBar().setStyleSheet("""
+            QStatusBar {
+                background-color: #1e1e1e;
+                color: #888;
+                border-top: 1px solid #3c3c3c;
+            }
+        """)
         self.status_label = QLabel("Готов к работе")
         self.statusBar().addWidget(self.status_label)
-    
-    def _show_start_page(self):
-        start_page = StartPage(self.project_manager, self)
-        start_page.openProject.connect(self._open_project)
-        start_page.newProject.connect(self._new_project)
-        
-        index = self.tab_widget.addTab(start_page, "🏠 Стартовая")
-        self.tab_widget.setCurrentIndex(index)
-    
-    def _new_project(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Новый проект")
-        dialog.setModal(True)
-        dialog.setFixedSize(500, 300)
-        
-        layout = QVBoxLayout(dialog)
-        
-        layout.addWidget(QLabel("Название проекта:"))
-        name_edit = QLineEdit()
-        name_edit.setPlaceholderText("например: Смарт Завуч")
-        layout.addWidget(name_edit)
-        
-        layout.addWidget(QLabel("Описание (необязательно):"))
-        desc_edit = QTextEdit()
-        desc_edit.setMaximumHeight(100)
-        layout.addWidget(desc_edit)
-        
-        layout.addWidget(QLabel("Автор:"))
-        author_edit = QLineEdit()
-        layout.addWidget(author_edit)
-        
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        
-        cancel_btn = QPushButton("Отмена")
-        cancel_btn.clicked.connect(dialog.reject)
-        btn_layout.addWidget(cancel_btn)
-        
-        ok_btn = QPushButton("Создать")
-        ok_btn.setStyleSheet("background-color: #3b82f6; color: white;")
-        ok_btn.clicked.connect(dialog.accept)
-        btn_layout.addWidget(ok_btn)
-        
-        layout.addLayout(btn_layout)
-        
-        if dialog.exec() == QDialog.DialogCode.Accepted and name_edit.text():
-            project = self.project_manager.create_project(
-                name=name_edit.text(),
-                description=desc_edit.toPlainText(),
-                author=author_edit.text()
-            )
-            
-            self.status_label.setText(f"Проект '{project.name}' создан")
-            
-            self.tab_widget.removeTab(0)
-            self._open_table_designer()
-    
-    def _open_project(self, filename: str = None):
-        if not filename:
-            filename, _ = QFileDialog.getOpenFileName(
-                self, "Открыть проект", "projects", "No-Code Project (*.ncp)"
-            )
-        
-        if filename:
-            project = self.project_manager.load_project(filename)
-            if project:
-                self.status_label.setText(f"Проект '{project.name}' загружен")
-                self.tab_widget.removeTab(0)
-                self._open_table_designer()
-    
-    def _open_table_designer(self):
-        if not self.project_manager.current_project:
-            QMessageBox.warning(self, "Внимание", "Сначала создайте или откройте проект")
+
+    def show_start_page(self):
+        """Показывает стартовую страницу"""
+        self.start_page = StartPage()
+        self.start_page.newProjectRequested.connect(self.new_project)
+        self.start_page.openProjectRequested.connect(self.open_project)
+        self.setCentralWidget(self.start_page)
+
+    # ========== РАБОТА С ПРОЕКТАМИ ==========
+
+    def new_project(self):
+        """Создание нового проекта"""
+        # Запрашиваем название проекта
+        project_name, ok = QInputDialog.getText(
+            self, "Новый проект",
+            "Введите название проекта:"
+        )
+
+        if not ok or not project_name.strip():
             return
-        
+
+        # Запрашиваем папку для сохранения
+        projects_dir = os.path.join(os.path.expanduser("~"), "LowCodeProjects")
+        if not os.path.exists(projects_dir):
+            os.makedirs(projects_dir)
+
+        project_path = os.path.join(projects_dir, project_name.strip())
+
+        try:
+            # Создаём проект
+            self.project_manager = ProjectManager(project_path)
+            self.project_manager.create_project(project_name.strip())
+
+            self.current_project_path = project_path
+            self.status_label.setText(f"Проект: {project_name}")
+
+            # Открываем конструктор таблиц
+            self.open_table_designer()
+
+        except Exception as e:
+            ModernMessageBox.error(self, "Ошибка", f"Не удалось создать проект: {str(e)}")
+
+    def open_project(self):
+        """Открытие существующего проекта"""
+        projects_dir = os.path.join(os.path.expanduser("~"), "LowCodeProjects")
+
+        if not os.path.exists(projects_dir):
+            os.makedirs(projects_dir)
+
+        project_path = QFileDialog.getExistingDirectory(
+            self, "Выберите папку проекта", projects_dir
+        )
+
+        if not project_path:
+            return
+
+        try:
+            # Открываем проект
+            self.project_manager = ProjectManager(project_path)
+            self.project_manager.load_project()
+
+            self.current_project_path = project_path
+            project_name = os.path.basename(project_path)
+            self.status_label.setText(f"Проект: {project_name}")
+
+            # Открываем конструктор таблиц
+            self.open_table_designer()
+
+        except Exception as e:
+            ModernMessageBox.error(self, "Ошибка", f"Не удалось открыть проект: {str(e)}")
+
+    def save_project(self):
+        """Сохранение проекта"""
+        if not self.project_manager:
+            ModernMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+
+        try:
+            self.project_manager.save_project()
+            self.status_label.setText("Проект сохранён")
+        except Exception as e:
+            ModernMessageBox.error(self, "Ошибка", f"Не удалось сохранить проект: {str(e)}")
+
+    def save_project_as(self):
+        """Сохранение проекта как..."""
+        if not self.project_manager:
+            ModernMessageBox.warning(self, "Предупреждение", "Нет открытого проекта")
+            return
+
+        projects_dir = os.path.join(os.path.expanduser("~"), "LowCodeProjects")
+        new_path = QFileDialog.getExistingDirectory(
+            self, "Выберите папку для сохранения", projects_dir
+        )
+
+        if not new_path:
+            return
+
+        try:
+            # Копируем проект в новую папку
+            import shutil
+            shutil.copytree(self.current_project_path, new_path)
+
+            # Открываем скопированный проект
+            self.project_manager = ProjectManager(new_path)
+            self.project_manager.load_project()
+
+            self.current_project_path = new_path
+            self.status_label.setText(f"Проект сохранён как: {os.path.basename(new_path)}")
+
+        except Exception as e:
+            ModernMessageBox.error(self, "Ошибка", f"Не удалось сохранить проект: {str(e)}")
+
+    def close_project(self):
+        """Закрытие проекта"""
+        if not self.project_manager:
+            return
+
+        reply = ModernMessageBox.question(
+            self, "Подтверждение",
+            "Закрыть проект? Несохранённые изменения будут потеряны."
+        )
+
+        if reply:
+            self.project_manager = None
+            self.current_project_path = None
+            self.current_designer = None
+
+            # Очищаем вкладки
+            self.tab_widget.clear()
+
+            # Показываем стартовую страницу
+            self.show_start_page()
+            self.status_label.setText("Готов к работе")
+
+    # ========== ОТКРЫТИЕ КОНСТРУКТОРОВ ==========
+
+    def open_table_designer(self):
+        """Открывает конструктор таблиц"""
+        if not self.project_manager:
+            ModernMessageBox.warning(self, "Предупреждение", "Сначала откройте проект")
+            return
+
+        # Проверяем, не открыта ли уже вкладка с конструктором таблиц
         for i in range(self.tab_widget.count()):
-            if self.tab_widget.tabText(i) == "📊 Конструктор таблиц":
+            if self.tab_widget.tabText(i) == "Конструктор таблиц":
                 self.tab_widget.setCurrentIndex(i)
                 return
-        
-        designer = TableDesignerWidget(self.project_manager)
+
+        # Создаём конструктор таблиц
+        designer = TableDesigner(self.project_manager)
+
+        # Добавляем вкладку
         index = self.tab_widget.addTab(designer, "📊 Конструктор таблиц")
         self.tab_widget.setCurrentIndex(index)
-    
-    def _close_tab(self, index: int):
-        widget = self.tab_widget.widget(index)
-        if hasattr(widget, 'can_close') and not widget.can_close():
+
+        self.current_designer = designer
+        self.status_label.setText("Конструктор таблиц открыт")
+
+    def open_form_designer(self):
+        """Открывает конструктор форм (заглушка)"""
+        if not self.project_manager:
+            ModernMessageBox.warning(self, "Предупреждение", "Сначала откройте проект")
             return
+
+        ModernMessageBox.info(self, "Информация", "Конструктор форм находится в разработке")
+
+    def open_report_designer(self):
+        """Открывает конструктор отчётов (заглушка)"""
+        if not self.project_manager:
+            ModernMessageBox.warning(self, "Предупреждение", "Сначала откройте проект")
+            return
+
+        ModernMessageBox.info(self, "Информация", "Конструктор отчётов находится в разработке")
+
+    def open_menu_designer(self):
+        """Открывает конструктор меню (заглушка)"""
+        if not self.project_manager:
+            ModernMessageBox.warning(self, "Предупреждение", "Сначала откройте проект")
+            return
+
+        ModernMessageBox.info(self, "Информация", "Конструктор меню находится в разработке")
+
+    def open_logic_designer(self):
+        """Открывает конструктор логики (заглушка)"""
+        if not self.project_manager:
+            ModernMessageBox.warning(self, "Предупреждение", "Сначала откройте проект")
+            return
+
+        ModernMessageBox.info(self, "Информация", "Конструктор логики находится в разработке")
+
+    def close_tab(self, index):
+        """Закрывает вкладку"""
+        widget = self.tab_widget.widget(index)
         self.tab_widget.removeTab(index)
         widget.deleteLater()
+
+        if self.tab_widget.count() == 0:
+            self.show_start_page()
+
+    # ========== ДИАЛОГИ ==========
+
+    def show_about(self):
+        """Показывает информацию о программе"""
+        ModernMessageBox.info(
+            self,
+            "О программе",
+            "Low-Code Платформа\nВерсия 1.0\n\n"
+            "Платформа для визуального создания приложений\n"
+            "без написания кода.\n\n"
+            "Конструкторы:\n"
+            "• Таблиц\n"
+            "• Форм\n"
+            "• Отчётов\n"
+            "• Меню\n"
+            "• Логики"
+        )
+
+    def closeEvent(self, event):
+        """Обработка закрытия окна"""
+        if self.project_manager:
+            reply = ModernMessageBox.question(
+                self, "Подтверждение",
+                "Закрыть программу? Несохранённые изменения будут потеряны."
+            )
+            if reply:
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
